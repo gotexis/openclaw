@@ -3,6 +3,7 @@ summary: "Sign in to GitHub Copilot from OpenClaw using the device flow"
 read_when:
   - You want to use GitHub Copilot as a model provider
   - You need the `openclaw models auth login-github-copilot` flow
+  - You want to use a Personal Access Token (PAT) with Copilot
 title: "GitHub Copilot"
 ---
 
@@ -12,9 +13,9 @@ title: "GitHub Copilot"
 
 GitHub Copilot is GitHub's AI coding assistant. It provides access to Copilot
 models for your GitHub account and plan. OpenClaw can use Copilot as a model
-provider in two different ways.
+provider in multiple ways.
 
-## Two ways to use Copilot in OpenClaw
+## Ways to use Copilot in OpenClaw
 
 ### 1) Built-in GitHub Copilot provider (`github-copilot`)
 
@@ -22,7 +23,31 @@ Use the native device-login flow to obtain a GitHub token, then exchange it for
 Copilot API tokens when OpenClaw runs. This is the **default** and simplest path
 because it does not require VS Code.
 
-### 2) Copilot Proxy plugin (`copilot-proxy`)
+### 2) Personal Access Token (PAT) or OAuth token
+
+You can use a GitHub Personal Access Token directly. Tokens with
+these prefixes are used directly without exchange:
+
+- `github_pat_` - Fine-grained Personal Access Token
+- `ghp_` - Classic Personal Access Token
+
+Set the token via environment variable:
+
+```bash
+export COPILOT_GITHUB_TOKEN="github_pat_your_token_here"
+# or
+export GH_TOKEN="github_pat_your_token_here"
+# or
+export GITHUB_TOKEN="github_pat_your_token_here"
+```
+
+For **enterprise users** or when you need to specify a custom API endpoint:
+
+```bash
+export COPILOT_API_BASE_URL="https://api.business.githubcopilot.com"
+```
+
+### 3) Copilot Proxy plugin (`copilot-proxy`)
 
 Use the **Copilot Proxy** VS Code extension as a local bridge. OpenClaw talks to
 the proxy’s `/v1` endpoint and uses the model list you configure there. Choose
