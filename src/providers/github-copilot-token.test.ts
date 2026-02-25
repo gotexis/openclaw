@@ -19,12 +19,12 @@ describe("github-copilot token", () => {
   });
 
   it("derives baseUrl from token", async () => {
-    expect(deriveCopilotApiBaseUrlFromToken("token;proxy-ep=proxy.example.com;")).toBe(
-      "https://api.example.com",
-    );
-    expect(deriveCopilotApiBaseUrlFromToken("token;proxy-ep=https://proxy.foo.bar;")).toBe(
-      "https://api.foo.bar",
-    );
+    expect(
+      deriveCopilotApiBaseUrlFromToken("token;proxy-ep=proxy.example.com;"),
+    ).toBe("https://api.example.com");
+    expect(
+      deriveCopilotApiBaseUrlFromToken("token;proxy-ep=https://proxy.foo.bar;"),
+    ).toBe("https://api.foo.bar");
   });
 
   it("uses cache when token is still valid", async () => {
@@ -62,7 +62,8 @@ describe("github-copilot token", () => {
       }),
     });
 
-    const { resolveCopilotApiToken } = await import("./github-copilot-token.js");
+    const { resolveCopilotApiToken } =
+      await import("./github-copilot-token.js");
 
     const res = await resolveCopilotApiToken({
       githubToken: "gh",
@@ -79,7 +80,9 @@ describe("github-copilot token", () => {
 
   describe("direct-use tokens (PAT/OAuth)", () => {
     it("identifies github_pat_ tokens as direct-use", () => {
-      expect(isDirectUseToken("github_pat_11BZNJENQ0b3Gwu6kSoWpl_xxxx")).toBe(true);
+      expect(isDirectUseToken("github_pat_11BZNJENQ0b3Gwu6kSoWpl_xxxx")).toBe(
+        true,
+      );
     });
 
     it("identifies ghp_ tokens as direct-use", () => {
@@ -244,9 +247,11 @@ describe("github-copilot token", () => {
 
   describe("resolveCopilotApiBaseUrl", () => {
     it("returns env var when set", () => {
-      expect(resolveCopilotApiBaseUrl({ COPILOT_API_BASE_URL: "https://custom.api" })).toBe(
-        "https://custom.api",
-      );
+      expect(
+        resolveCopilotApiBaseUrl({
+          COPILOT_API_BASE_URL: "https://custom.api",
+        }),
+      ).toBe("https://custom.api");
     });
 
     it("returns token-derived URL when no env var", () => {
@@ -261,7 +266,10 @@ describe("github-copilot token", () => {
 
     it("prefers env var over token-derived URL", () => {
       expect(
-        resolveCopilotApiBaseUrl({ COPILOT_API_BASE_URL: "https://env.api" }, "https://token.api"),
+        resolveCopilotApiBaseUrl(
+          { COPILOT_API_BASE_URL: "https://env.api" },
+          "https://token.api",
+        ),
       ).toBe("https://env.api");
     });
   });
