@@ -4,6 +4,34 @@ import { loadJsonFile, saveJsonFile } from "../infra/json-file.js";
 
 const COPILOT_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token";
 
+/**
+ * Token prefixes that can be used directly with the Copilot API
+ * without requiring a token exchange via /copilot_internal/v2/token.
+ *
+ * - `github_pat_` - Fine-grained Personal Access Token
+ * - `ghp_` - Classic Personal Access Token
+ *
+ * The official Copilot CLI (as observed via network capture) sends these tokens
+ * directly to the Copilot API endpoints with `Authorization: Bearer <token>`.
+ */
+const DIRECT_USE_TOKEN_PREFIXES = ["github_pat_", "ghp_"] as const;
+
+/**
+ * Check if a token can be used directly with the Copilot API
+ * without requiring a token exchange.
+ */
+export function isDirectUseToken(token: string): boolean {
+  const trimmed = token.trim();
+  return DIRECT_USE_TOKEN_PREFIXES.some((prefix) => trimmed.startsWith(prefix));
+}
+
+/**
+ * Default TTL for direct-use tokens (PAT, OAuth).
+ * PATs don't have a built-in expiry in the Copilot context, but we cache them
+ * for 8 hours to match the Copilot CLI's OAuth token lifetime.
+ */
+const DIRECT_TOKEN_TTL_MS = 8 * 60 * 60 * 1000;
+
 export type CachedCopilotToken = {
   token: string;
   /** milliseconds since epoch */
@@ -53,6 +81,25 @@ function parseCopilotTokenResponse(value: unknown): {
 }
 
 export const DEFAULT_COPILOT_API_BASE_URL = "https://api.individual.githubcopilot.com";
+export const BUSINESS_COPILOT_API_BASE_URL = "https://api.business.githubcopilot.com";
+
+/**
+ * Resolve the Copilot API base URL.
+ * Priority:
+ * 1. COPILOT_API_BASE_URL env var (for enterprise/custom endpoints)
+ * 2. Derived from exchanged token's proxy-ep field
+ * 3. Default to individual endpoint
+ */
+export function resolveCopilotApiBaseUrl(
+  env: NodeJS.ProcessEnv = process.env,
+  tokenDerivedUrl?: string | null,
+): string {
+  const envUrl = env.COPILOT_API_BASE_URL?.trim();
+  if (envUrl) {
+    return envUrl;
+  }
+  return tokenDerivedUrl ?? DEFAULT_COPILOT_API_BASE_URL;
+}
 
 export function deriveCopilotApiBaseUrlFromToken(token: string): string | null {
   const trimmed = token.trim();
@@ -95,6 +142,27 @@ export async function resolveCopilotApiToken(params: {
   const cachePath = params.cachePath?.trim() || resolveCopilotTokenCachePath(env);
   const loadJsonFileFn = params.loadJsonFileImpl ?? loadJsonFile;
   const saveJsonFileFn = params.saveJsonFileImpl ?? saveJsonFile;
+
+  // Direct-use tokens (PAT, OAuth) can be used directly with the Copilot API
+  // without requiring a token exchange. This matches the behavior of the
+  // official Copilot CLI which sends PATs directly to the API.
+  if (isDirectUseToken(params.githubToken)) {
+    const now = Date.now();
+    const baseUrl = resolveCopilotApiBaseUrl(env);
+    const payload: CachedCopilotToken = {
+      token: params.githubToken,
+      expiresAt: now + DIRECT_TOKEN_TTL_MS,
+      updatedAt: now,
+    };
+    saveJsonFileFn(cachePath, payload);
+    return {
+      token: payload.token,
+      expiresAt: payload.expiresAt,
+      source: "direct:pat-or-oauth",
+      baseUrl,
+    };
+  }
+
   const cached = loadJsonFileFn(cachePath) as CachedCopilotToken | undefined;
   if (cached && typeof cached.token === "string" && typeof cached.expiresAt === "number") {
     if (isTokenUsable(cached)) {
@@ -102,7 +170,7 @@ export async function resolveCopilotApiToken(params: {
         token: cached.token,
         expiresAt: cached.expiresAt,
         source: `cache:${cachePath}`,
-        baseUrl: deriveCopilotApiBaseUrlFromToken(cached.token) ?? DEFAULT_COPILOT_API_BASE_URL,
+        baseUrl: resolveCopilotApiBaseUrl(env, deriveCopilotApiBaseUrlFromToken(cached.token)),
       };
     }
   }
@@ -132,6 +200,6 @@ export async function resolveCopilotApiToken(params: {
     token: payload.token,
     expiresAt: payload.expiresAt,
     source: `fetched:${COPILOT_TOKEN_URL}`,
-    baseUrl: deriveCopilotApiBaseUrlFromToken(payload.token) ?? DEFAULT_COPILOT_API_BASE_URL,
+    baseUrl: resolveCopilotApiBaseUrl(env, deriveCopilotApiBaseUrlFromToken(payload.token)),
   };
 }
